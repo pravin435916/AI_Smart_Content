@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Smart Content ",
+  "version": "1.0.0",
+  "description": "A simple Chrome extension using React",
+  "action": {
+    "default_popup": "public/index.html"
+  },
+  "permissions": ["storage", "activeTab", "scripting"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/App.jsx"]
+    }
+  ]
+}
