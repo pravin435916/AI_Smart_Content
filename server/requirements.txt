@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+groq
+ffmpeg-python
+python-dotenv
+yt-dlp
+nltk
+google-api-python-client>=2.100.0
+youtube-transcript-api>=0.6.1
+python-multipart>=0.0.9
+pydantic>=2.6.0
