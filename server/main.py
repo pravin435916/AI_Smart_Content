@@ -86,7 +86,7 @@ def summarize_with_groq(text):
     
     try:
         response = client.chat.completions.create(
-            model="mistral-saba-24b",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": "Summarize the following transcription in a clear, concise, and structured manner. Present the key points in bullet format, highlighting the most important details, insights, and takeaways. Ensure the summary is easy to read and provides a meaningful understanding of the content."},
                 {"role": "user", "content": text}
@@ -155,13 +155,13 @@ def get_video_transcript(video_id):
         return f"Transcript not available: {str(e)}"
 
 def summarize_text(text):
-    """Summarize text using Groq API with mistral-saba-24b model"""
+    """Summarize text using Groq API with llama-3.3-70b-versatile"""
     if "Transcript not available" in text:
         return text
     
     try:
         response = client.chat.completions.create(
-            model="mistral-saba-24b",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": "Generate a concise summary of the following transcript. Focus on the main points and key takeaways. The summary should be clear, informative, and about 150-250 words."},
                 {"role": "user", "content": text[:4000] + "..."}
@@ -174,10 +174,10 @@ def summarize_text(text):
         return f"Error generating summary: {str(e)}"
 
 def generate_quiz_questions(text):
-    """Generate quiz questions using Groq API with mistral-saba-24b model"""
+    """Generate quiz questions using Groq API with llama-3.3-70b-versatile model"""
     try:
         response = client.chat.completions.create(
-            model="mistral-saba-24b",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": """Generate 5 multiple-choice quiz questions based on this video transcript. 
                 Format the response as JSON with the following structure:
