@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Youtube, Upload, FileText, Loader2, CheckCircle, AlertCircle, BookOpen, List, HelpCircle, Play, ExternalLink, Share2, Download, Bookmark } from "lucide-react";
+import { Youtube, Upload, FileText, Loader2, CheckCircle, AlertCircle, BookOpen, List, HelpCircle, Play, ExternalLink, Share2, Download, Bookmark, AudioLines } from "lucide-react";
 import QuizComponent from "./QuizComponent";
 
 export default function Popup() {
@@ -7,6 +7,7 @@ export default function Popup() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [processing, setProcessing] = useState(false);
   const [videoPreview, setVideoPreview] = useState(null);
+  const [uploadedFile, setUploadedFile] = useState(null);
   const [selectedProcessingOptions, setSelectedProcessingOptions] = useState({
     transcript: true,
     summary: true,
@@ -22,7 +23,7 @@ export default function Popup() {
   const [activeResultTab, setActiveResultTab] = useState("summary");
 
   // Base API URL - update with your actual API URL if different
-  const API_BASE_URL = "http://localhost:8000";
+  const API_BASE_URL = "http://127.0.0.1:8000";
 
   // Extract YouTube ID from URL
   const extractVideoId = (url) => {
@@ -66,6 +67,7 @@ export default function Popup() {
     setProcessing(false);
     setVideoPreview(null);
     setYoutubeUrl("");
+    setUploadedFile(null);
   };
 
   const processYoutubeVideo = async () => {
@@ -109,53 +111,141 @@ export default function Popup() {
     }
   };
 
-  const handleFileUpload = (event, type) => {
-    // For demo purposes, we'll just show a success message
-    // In a real implementation, you would upload the file to your server
-    const file = event.target.files[0];
-    if (file) {
+  const handleVideoTranscription = async (file) => {
+    if (!file) return;
+
+    setApiStatus({
+      loading: true,
+      success: false,
+      error: null,
+      data: null
+    });
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_BASE_URL}/transcribe`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to transcribe media');
+      }
+
+      const data = await response.json();
+      
+      // Format the data to match our expected structure
+      const formattedData = {
+        metadata: {
+          title: file.name,
+          channel: "Local Upload",
+          views: "N/A",
+          likes: "N/A",
+        },
+        summary: data.Summary || "No summary available",
+        transcript_preview: data["Full Transcription"] || "No transcript available"
+      };
+
       setApiStatus({
         loading: false,
         success: true,
         error: null,
-        data: {
-          metadata: {
-            title: file.name,
-            channel: "Local Upload",
-            views: "N/A",
-            likes: "N/A",
-          },
-          summary: `This is a placeholder summary for your uploaded ${type}. In a production version, the file would be processed by the backend API.`,
-          transcript_preview: `Placeholder transcript for ${file.name}...`
-        }
+        data: formattedData
       });
+    } catch (error) {
+      setApiStatus({
+        loading: false,
+        success: false,
+        error: error.message || "An error occurred during transcription",
+        data: null
+      });
+    }
+  };
+
+  const handleFileUpload = (event, type) => {
+    const file = event.target.files[0];
+    if (file) {
+      setUploadedFile(file);
       setProcessing(true);
+      
+      // If it's immediate processing, handle it directly
+      if (type === 'quick-process') {
+        if (file.type.startsWith('video/') || file.type.startsWith('audio/')) {
+          handleVideoTranscription(file);
+        } else {
+          // For documents or other files, use placeholder for now
+          setApiStatus({
+            loading: false,
+            success: true,
+            error: null,
+            data: {
+              metadata: {
+                title: file.name,
+                channel: "Local Upload",
+                views: "N/A",
+                likes: "N/A",
+              },
+              summary: `This is a placeholder summary for your uploaded ${type}. In a production version, the file would be processed by the backend API.`,
+              transcript_preview: `Placeholder transcript for ${file.name}...`
+            }
+          });
+        }
+      }
     }
   };
 
   const handleSubmit = () => {
     if (selectedOption === 'youtube') {
       processYoutubeVideo();
+    } else if (selectedOption === 'video' || selectedOption === 'audio') {
+      if (uploadedFile) {
+        handleVideoTranscription(uploadedFile);
+      }
+    } else if (selectedOption === 'document') {
+      // Document processing placeholder
+      if (uploadedFile) {
+        setApiStatus({
+          loading: false,
+          success: true,
+          error: null,
+          data: {
+            metadata: {
+              title: uploadedFile.name,
+              channel: "Local Upload",
+              views: "N/A",
+              likes: "N/A",
+            },
+            summary: `This is a placeholder summary for your uploaded document. In a production version, the file would be processed by the backend API.`,
+            transcript_preview: `Placeholder transcript for ${uploadedFile.name}...`
+          }
+        });
+      }
     }
   };
 
   const renderResults = () => {
     const { data } = apiStatus;
     if (!data) return null;
+    
+
+    console.log(data);
 
     return (
-      <div className="mt-6 bg-white rounded-lg shadow-md overflow-hidden">
+      <div className="relative min-h-screen p-2 mt-6 bg-white rounded-lg shadow-md overflow-hidden">
         {/* Video/Content Info Header */}
         <div className="bg-gradient-to-r from-violet-600 to-indigo-700 p-4 text-white">
           <h3 className="font-semibold text-lg">{data.metadata?.title || "Content Results"}</h3>
           <p className="text-sm opacity-90">{data.metadata?.channel || ""}</p>
           <div className="flex gap-2 mt-2 text-xs">
-            {data.metadata?.views && (
+            {data.metadata?.views && data.metadata?.views !== "N/A" && (
               <span className="bg-white/20 px-2 py-1 rounded-full">
                 {parseInt(data.metadata.views).toLocaleString()} views
               </span>
             )}
-            {data.metadata?.likes && (
+            {data.metadata?.likes && data.metadata?.likes !== "N/A" && (
               <span className="bg-white/20 px-2 py-1 rounded-full">
                 {parseInt(data.metadata.likes).toLocaleString()} likes
               </span>
@@ -224,7 +314,7 @@ export default function Popup() {
           {activeResultTab === 'summary' && (
             <div className="prose prose-sm max-w-none text-gray-700">
               <h4 className="text-lg font-medium text-gray-900 mb-2">Content Summary</h4>
-              <p>{data.summary || "No summary available"}</p>
+              <p className="whitespace-pre-line">{data.summary || "No summary available"}</p>
             </div>
           )}
 
@@ -243,7 +333,14 @@ export default function Popup() {
           {activeResultTab === 'notes' && (
             <div className="prose prose-sm max-w-none text-gray-700">
               <h4 className="text-lg font-medium text-gray-900 mb-2">Key Notes</h4>
-              <p>Key notes feature will be available in the next update.</p>
+              {/* <p>Key notes feature will be available in the next update.</p> */}
+              {
+                data?.short_notes ? (
+                  <p>{data.short_notes}</p>
+                ) : (
+                  <p>Key notes feature will be available in the next update.</p>
+                )
+              }
             </div>
           )}
 
@@ -252,11 +349,7 @@ export default function Popup() {
               <h4 className="text-lg font-medium text-gray-900 mb-2">Quiz Questions</h4>
               {data.questions ? (
                 <div>
-                  <p>Quiz questions feature will display interactive quiz based on the content.</p>
                   <QuizComponent quizData={data.questions} />
-                  {/* <pre className="text-xs bg-gray-100 p-2 rounded mt-2 overflow-auto max-h-40">
-                    {data.questions}
-                  </pre> */}
                 </div>
               ) : (
                 <p>No quiz questions available.</p>
@@ -290,7 +383,7 @@ export default function Popup() {
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-violet-50 to-indigo-100">
-      <div className="max-w-2xl mx-auto p-6">
+      <div className="max-w-4xl mx-auto p-6 rounded-full">
         {/* Professional Header with Violet Theme */}
         <div className="relative overflow-hidden rounded-xl mb-6 bg-white shadow-lg">
           <div className="absolute inset-0 bg-gradient-to-r from-violet-500/20 via-indigo-500/20 to-purple-500/20 animate-gradient"></div>
@@ -341,9 +434,25 @@ export default function Popup() {
                     <div className={`p-3 rounded-full ${selectedOption === 'video' ? 'bg-violet-100' : 'bg-gray-100 group-hover:bg-violet-50'}`}>
                       <Upload className={`${selectedOption === 'video' ? 'text-violet-600' : 'text-indigo-600'}`} size={24} />
                     </div>
-                    <h2 className="font-semibold text-sm text-gray-800">Upload Video</h2>
+                    <h2 className="font-semibold text-sm text-gray-800">Upload Video/Audio</h2>
                   </div>
                 </div>
+
+                {/* Upload Audio Box */}
+                {/* <div 
+                  className={`p-4 rounded-xl border-2 transition-all cursor-pointer group hover:shadow-md
+                    ${selectedOption === 'audio' 
+                      ? 'border-violet-500 bg-violet-50' 
+                      : 'border-gray-200 hover:border-violet-300 hover:bg-gray-50'}`}
+                  onClick={() => setSelectedOption('audio')}
+                >
+                  <div className="flex flex-col items-center gap-3 text-center">
+                    <div className={`p-3 rounded-full ${selectedOption === 'audio' ? 'bg-violet-100' : 'bg-gray-100 group-hover:bg-violet-50'}`}>
+                      <AudioLines className={`${selectedOption === 'audio' ? 'text-violet-600' : 'text-indigo-600'}`} size={24} />
+                    </div>
+                    <h2 className="font-semibold text-sm text-gray-800">Upload Audio</h2>
+                  </div>
+                </div> */}
 
                 {/* Upload Document Box */}
                 <div 
@@ -457,6 +566,26 @@ export default function Popup() {
                     </div>
                   )}
                   
+                  {selectedOption === 'audio' && (
+                    <div className="border-2 border-dashed border-violet-300 rounded-lg p-8 text-center hover:bg-violet-50 transition-colors">
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        className="hidden"
+                        id="audio-upload"
+                        onChange={(e) => handleFileUpload(e, 'audio')}
+                      />
+                      <label 
+                        htmlFor="audio-upload"
+                        className="cursor-pointer flex flex-col items-center gap-3"
+                      >
+                        <AudioLines className="text-violet-500" size={32} />
+                        <span className="text-sm text-gray-700 font-medium">Click to upload or drag and drop</span>
+                        <span className="text-xs text-gray-500">MP3, WAV, M4A up to 100MB</span>
+                      </label>
+                    </div>
+                  )}
+                  
                   {selectedOption === 'document' && (
                     <div className="border-2 border-dashed border-violet-300 rounded-lg p-8 text-center hover:bg-violet-50 transition-colors">
                       <input
@@ -480,7 +609,7 @@ export default function Popup() {
               )}
 
               {/* Processing Options */}
-              {processing && !apiStatus.loading && !apiStatus.success && videoPreview && (
+              {processing && !apiStatus.loading && !apiStatus.success && (videoPreview || uploadedFile) && (
                 <div className="space-y-4 animate-fadeIn">
                   <div className="bg-gradient-to-r from-violet-50 to-indigo-50 p-6 rounded-lg border border-violet-100">
                     <h3 className="font-medium text-gray-800 mb-4">Processing Options</h3>
@@ -525,9 +654,19 @@ export default function Popup() {
                     <button 
                       className="mt-5 w-full bg-gradient-to-r from-violet-600 to-indigo-600 text-white py-3 px-4 rounded-lg hover:from-violet-700 hover:to-indigo-700 transition-all shadow-md flex items-center justify-center gap-2"
                       onClick={handleSubmit}
+                      disabled={apiStatus.loading}
                     >
-                      <Play size={18} />
-                      <span>Start Processing</span>
+                      {apiStatus.loading ? (
+                        <>
+                          <Loader2 className="animate-spin" size={18} />
+                          <span>Processing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play size={18} />
+                          <span>Start Processing</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -552,50 +691,15 @@ export default function Popup() {
 
         {/* Footer */}
         <div className="mt-4 text-center text-xs text-gray-500 flex justify-between items-center">
-          <p>© 2025 Smart Sidebar</p>
+          <p>
+            &copy; 2022 Smart Sidebar. All rights reserved.
+          </p>
           <div className="flex gap-2">
-            <span>AI Powered</span>
-            <span>•</span>
-            <span>Professional Edition</span>
+            <a href="#" className="hover:text-gray-700">Privacy Policy</a>
+            <a href="#" className="hover:text-gray-700">Terms of Service</a>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
-// Add this to your CSS file or style section
-/*
-@keyframes gradient {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-.animate-gradient {
-  background-size: 200% 200%;
-  animation: gradient 8s ease infinite;
-}
-
-.animate-fadeIn {
-  animation: fadeIn 0.3s ease-in-out;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Hide scrollbars for the results but allow scrolling */

@@ -1,14 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { ChevronRight, Check, X, Award, RotateCcw, HelpCircle } from 'lucide-react';
 
+// The QuizComponent with the improved parsing function
 const QuizComponent = ({ quizData }) => {
-  // Parse the quiz data if it's a string
+  // Modified parse function to handle the specific format
   const parseQuizData = (data) => {
     if (typeof data === 'string') {
       try {
-        const parsed = data.replace('```json', '').replace('```', '');
-        console.log('parsed: ', parsed);
-        return JSON.parse(parsed);
+        // First clean up the string by removing markdown code blocks
+        let cleanData = data;
+        if (data.includes('```')) {
+          cleanData = data.replace(/```json/g, '').replace(/```/g, '');
+        }
+        
+        // Find the JSON array in the text
+        const jsonRegex = /\[\s*\{[\s\S]*\}\s*\]/g;
+        const match = cleanData.match(jsonRegex);
+        
+        if (match && match[0]) {
+          return JSON.parse(match[0]);
+        } else {
+          console.error('No valid JSON array found in the string');
+          return [];
+        }
       } catch (error) {
         console.error('Error parsing quiz data:', error);
         return [];
@@ -17,15 +31,18 @@ const QuizComponent = ({ quizData }) => {
     return data || [];
   };
 
-  const parsedQuizData = parseQuizData(quizData);
-  
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState(null);
-  const [isAnswered, setIsAnswered] = useState(false);
-  const [score, setScore] = useState(0);
-  const [quizComplete, setQuizComplete] = useState(false);
-  const [quizStarted, setQuizStarted] = useState(false);
-  const [userAnswers, setUserAnswers] = useState([]);
+  const [parsedQuizData, setParsedQuizData] = React.useState([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = React.useState(0);
+  const [selectedAnswer, setSelectedAnswer] = React.useState(null);
+  const [isAnswered, setIsAnswered] = React.useState(false);
+  const [score, setScore] = React.useState(0);
+  const [quizComplete, setQuizComplete] = React.useState(false);
+  const [quizStarted, setQuizStarted] = React.useState(false);
+  const [userAnswers, setUserAnswers] = React.useState([]);
+
+  React.useEffect(() => {
+    setParsedQuizData(parseQuizData(quizData));
+  }, [quizData]);
 
   const startQuiz = () => {
     setQuizStarted(true);
@@ -101,11 +118,11 @@ const QuizComponent = ({ quizData }) => {
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="bg-gradient-to-r from-violet-600 to-indigo-700 p-6 text-white text-center">
           <HelpCircle className="mx-auto mb-2" size={32} />
-          <h2 className="text-xl font-bold mb-2">Knowledge Check Quiz</h2>
+          <h2 className="text-xl font-bold mb-2">Git & GitHub Knowledge Check</h2>
           <p className="text-sm opacity-90">Test your understanding with {parsedQuizData.length} questions</p>
         </div>
         <div className="p-6 text-center">
-          <p className="text-gray-700 mb-6">Ready to test your knowledge? This quiz contains {parsedQuizData.length} questions about the content you just processed.</p>
+          <p className="text-gray-700 mb-6">Ready to test your knowledge? This quiz contains {parsedQuizData.length} questions about Git and GitHub basics.</p>
           <button
             onClick={startQuiz}
             className="bg-violet-600 hover:bg-violet-700 text-white font-medium py-2 px-6 rounded-lg transition-colors shadow-md flex items-center gap-2 mx-auto"
@@ -138,9 +155,9 @@ const QuizComponent = ({ quizData }) => {
             </div>
             
             <p className="text-gray-700">
-              {percentage >= 80 ? 'Excellent work! You have a great understanding of the material.' :
-               percentage >= 60 ? 'Good job! You have a solid grasp of the content.' :
-               'Keep studying! Review the material again to improve your score.'}
+              {percentage >= 80 ? 'Excellent work! You have a great understanding of Git and GitHub.' :
+               percentage >= 60 ? 'Good job! You have a solid grasp of the basics.' :
+               'Keep studying! Review the material again to improve your understanding of Git and GitHub.'}
             </p>
           </div>
           
@@ -200,7 +217,7 @@ const QuizComponent = ({ quizData }) => {
       {/* Quiz Header */}
       <div className="bg-gradient-to-r from-violet-600 to-indigo-700 p-4 text-white">
         <div className="flex justify-between items-center">
-          <h3 className="font-semibold">Knowledge Check</h3>
+          <h3 className="font-semibold">Git & GitHub Quiz</h3>
           <div className="text-sm bg-white/20 px-3 py-1 rounded-full">
             Question {currentQuestionIndex + 1} of {parsedQuizData.length}
           </div>

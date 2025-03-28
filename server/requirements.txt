@@ -9,3 +9,14 @@ google-api-python-client>=2.100.0
 youtube-transcript-api>=0.6.1
 python-multipart>=0.0.9
 pydantic>=2.6.0
+whisper==1.1.10
+streamlit
+langchain
+langchain-groq
+PyPDF2
+faiss-cpu
+sentence-transformers
+langchain-community
+python-dotenv
+Form
+tf-keras==2.15.0

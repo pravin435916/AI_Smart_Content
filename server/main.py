@@ -6,14 +6,21 @@ import re
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from googleapiclient.discovery import build
 from youtube_transcript_api import YouTubeTranscriptApi
 import uvicorn
 from dotenv import load_dotenv
-
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.vectorstores import FAISS
+from langchain.chains import ConversationalRetrievalChain
+from langchain_groq import ChatGroq
+from langchain.chains.conversation.memory import ConversationBufferMemory
+from PyPDF2 import PdfReader
+import io
 # Load environment variables
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -86,7 +93,7 @@ def summarize_with_groq(text):
     
     try:
         response = client.chat.completions.create(
-            model="mistral-saba-24b",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": "Summarize the following transcription in a clear, concise, and structured manner. Present the key points in bullet format, highlighting the most important details, insights, and takeaways. Ensure the summary is easy to read and provides a meaningful understanding of the content."},
                 {"role": "user", "content": text}
@@ -155,13 +162,13 @@ def get_video_transcript(video_id):
         return f"Transcript not available: {str(e)}"
 
 def summarize_text(text):
-    """Summarize text using Groq API with mistral-saba-24b model"""
+    """Summarize text using Groq API with llama-3.3-70b-versatile"""
     if "Transcript not available" in text:
         return text
     
     try:
         response = client.chat.completions.create(
-            model="mistral-saba-24b",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": "Generate a concise summary of the following transcript. Focus on the main points and key takeaways. The summary should be clear, informative, and about 150-250 words."},
                 {"role": "user", "content": text[:4000] + "..."}
@@ -174,10 +181,10 @@ def summarize_text(text):
         return f"Error generating summary: {str(e)}"
 
 def generate_quiz_questions(text):
-    """Generate quiz questions using Groq API with mistral-saba-24b model"""
+    """Generate quiz questions using Groq API with llama-3.3-70b-versatile model"""
     try:
         response = client.chat.completions.create(
-            model="mistral-saba-24b",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": """Generate 5 multiple-choice quiz questions based on this video transcript. 
                 Format the response as JSON with the following structure:
@@ -196,6 +203,27 @@ def generate_quiz_questions(text):
         return response.choices[0].message.content
     except Exception as e:
         return f"Error generating questions: {str(e)}"
+
+def generate_short_notes(text):
+    """
+    Uses Groq API to generate short notes from the transcribed text.
+    """
+    if len(text.split()) < 20:
+        return "Text too short for short notes."
+    
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": "Generate concise short notes for the following transcript. Focus on the key points, summarizing them in brief bullet points."},
+                {"role": "user", "content": text[:4000] + "..."}
+            ],
+            temperature=0.5,
+            max_tokens=300
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"Error generating short notes: {str(e)}"
 
 # Original Audio Transcription Routes
 @app.post("/transcribe")
@@ -286,6 +314,22 @@ async def get_questions(video_data: VideoURL):
     
     return {"questions": questions}
 
+@app.post("/api/short-notes")
+async def get_short_notes(video_data: VideoURL):
+    url = video_data.url
+    
+    video_id = extract_video_id(url)
+    if not video_id:
+        raise HTTPException(status_code=400, detail="Invalid YouTube URL")
+    
+    transcript = get_video_transcript(video_id)
+    if "Transcript not available" in transcript:
+        raise HTTPException(status_code=404, detail=transcript)
+    
+    short_notes = generate_short_notes(transcript)
+    
+    return {"short_notes": short_notes}
+
 @app.post("/api/full-analysis")
 async def full_analysis(video_data: VideoURL):
     url = video_data.url
@@ -307,21 +351,106 @@ async def full_analysis(video_data: VideoURL):
         transcript_error = transcript
         summary = None
         questions = None
+        short_notes = None
     else:
         # Generate summary
         summary = summarize_text(transcript)
         
         # Generate quiz questions
         questions = generate_quiz_questions(transcript)
+        
+        # Generate short notes
+        short_notes = generate_short_notes(transcript)
     
     return {
         "metadata": metadata,
         "transcript_error": transcript_error,
         "summary": summary,
         "transcript_preview": transcript[:500] + "..." if len(transcript) > 500 and "Transcript not available" not in transcript else None,
-        "questions": questions
+        "questions": questions,
+        "short_notes": short_notes
     }
 
+# Add these routes to your FastAPI app
+@app.post("/process-pdf")
+async def process_pdf(file: UploadFile = File(...)):
+    """Process a PDF file and create a vector store."""
+    try:
+        contents = await file.read()
+        pdf_reader = PdfReader(io.BytesIO(contents))
+        
+        # Extract text from PDF
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text()
+        
+        # Split text into chunks
+        text_splitter = CharacterTextSplitter(
+            separator="\n", chunk_size=1000, chunk_overlap=200
+        )
+        chunks = text_splitter.split_text(text)
+        
+        # Create embeddings and vector store
+        embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+        vector_store = FAISS.from_texts(chunks, embeddings)
+        
+        # Save vector store temporarily (in a real app, you'd persist this with a session ID)
+        # For demo purposes, we'll just return a success message
+        
+        return {
+            "status": "success",
+            "message": "PDF processed successfully",
+            "preview": text[:500] + "..." if len(text) > 500 else text
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
+
+@app.post("/ask-pdf")
+async def ask_pdf(question: str = Form(...), file: UploadFile = File(...)):
+    """Ask a question about the PDF content."""
+    try:
+        contents = await file.read()
+        pdf_reader = PdfReader(io.BytesIO(contents))
+        
+        # Extract text from PDF
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text()
+        
+        # Split text into chunks
+        text_splitter = CharacterTextSplitter(
+            separator="\n", chunk_size=1000, chunk_overlap=200
+        )
+        chunks = text_splitter.split_text(text)
+        
+        # Create embeddings and vector store
+        embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+        vector_store = FAISS.from_texts(chunks, embeddings)
+        
+        # Initialize Groq chat model
+        groq_chat = ChatGroq(
+            groq_api_key=GROQ_API_KEY,
+            model_name="mixtral-8x7b-32768"
+        )
+        
+        # Set up memory
+        memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+        
+        # Build conversational retrieval chain
+        qa_chain = ConversationalRetrievalChain.from_llm(
+            llm=groq_chat,
+            retriever=vector_store.as_retriever(),
+            memory=memory
+        )
+        
+        # Get answer
+        response = qa_chain.run(question)
+        
+        return {
+            "answer": response
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing question: {str(e)}")
 # Root endpoint for API health check
 @app.get("/")
 async def root():
