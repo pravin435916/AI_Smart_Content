@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { Youtube, Upload, FileText, Loader2, CheckCircle, AlertCircle, BookOpen, List, HelpCircle, Play, ExternalLink, Share2, Download, Bookmark, AudioLines } from "lucide-react";
 import QuizComponent from "./QuizComponent";
+import PdfChatComponent from "./PdfChatComponent";
+import LanguageSelector from "./LanguageSelector";
 
 export default function Popup() {
   const [selectedOption, setSelectedOption] = useState(null);
@@ -28,10 +30,10 @@ export default function Popup() {
   // Extract YouTube ID from URL
   const extractVideoId = (url) => {
     if (!url) return null;
-    
+
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
     const match = url.match(regExp);
-    
+
     return (match && match[2].length === 11) ? match[2] : null;
   };
 
@@ -136,7 +138,7 @@ export default function Popup() {
       }
 
       const data = await response.json();
-      
+
       // Format the data to match our expected structure
       const formattedData = {
         metadata: {
@@ -169,14 +171,18 @@ export default function Popup() {
     const file = event.target.files[0];
     if (file) {
       setUploadedFile(file);
-      setProcessing(true);
-      
-      // If it's immediate processing, handle it directly
-      if (type === 'quick-process') {
+
+      if (type === 'document' && file.type === 'application/pdf') {
+        // For PDF documents, we'll use the chat interface
+        setProcessing(true);
+        // Don't need to do anything else here, the PDF component will handle it
+      } else if (type === 'quick-process' || type === 'video' || type === 'audio') {
+        setProcessing(true);
+
         if (file.type.startsWith('video/') || file.type.startsWith('audio/')) {
           handleVideoTranscription(file);
         } else {
-          // For documents or other files, use placeholder for now
+          // For other documents or files, use placeholder for now
           setApiStatus({
             loading: false,
             success: true,
@@ -206,7 +212,7 @@ export default function Popup() {
       }
     } else if (selectedOption === 'document') {
       // Document processing placeholder
-      if (uploadedFile) {
+      if (uploadedFile && uploadedFile.type !== 'application/pdf') {
         setApiStatus({
           loading: false,
           success: true,
@@ -229,13 +235,14 @@ export default function Popup() {
   const renderResults = () => {
     const { data } = apiStatus;
     if (!data) return null;
-    
+
 
     console.log(data);
 
     return (
-      <div className="relative min-h-screen p-2 mt-6 bg-white rounded-lg shadow-md overflow-hidden">
+      <div className="relative min-h-screen max-w-96 p-2 mt-6 bg-white rounded-lg shadow-md overflow-hidden">
         {/* Video/Content Info Header */}
+        {/* <LanguageSelector /> */}
         <div className="bg-gradient-to-r from-violet-600 to-indigo-700 p-4 text-white">
           <h3 className="font-semibold text-lg">{data.metadata?.title || "Content Results"}</h3>
           <p className="text-sm opacity-90">{data.metadata?.channel || ""}</p>
@@ -257,8 +264,8 @@ export default function Popup() {
         <div className="flex border-b">
           {selectedProcessingOptions.summary && (
             <button
-              className={`flex-1 py-2 px-4 text-sm font-medium ${activeResultTab === 'summary' 
-                ? 'text-violet-700 border-b-2 border-violet-600' 
+              className={`flex-1 py-2 px-4 text-xs font-medium ${activeResultTab === 'summary'
+                ? 'text-violet-700 border-b-2 border-violet-600'
                 : 'text-gray-600 hover:text-violet-600'}`}
               onClick={() => setActiveResultTab('summary')}
             >
@@ -270,8 +277,8 @@ export default function Popup() {
           )}
           {selectedProcessingOptions.transcript && (
             <button
-              className={`flex-1 py-2 px-4 text-sm font-medium ${activeResultTab === 'transcript' 
-                ? 'text-violet-700 border-b-2 border-violet-600' 
+              className={`flex-1 py-2 px-4 text-xs font-medium ${activeResultTab === 'transcript'
+                ? 'text-violet-700 border-b-2 border-violet-600'
                 : 'text-gray-600 hover:text-violet-600'}`}
               onClick={() => setActiveResultTab('transcript')}
             >
@@ -283,8 +290,8 @@ export default function Popup() {
           )}
           {selectedProcessingOptions.notes && (
             <button
-              className={`flex-1 py-2 px-4 text-sm font-medium ${activeResultTab === 'notes' 
-                ? 'text-violet-700 border-b-2 border-violet-600' 
+              className={`flex-1 py-2 px-4 text-xs font-medium ${activeResultTab === 'notes'
+                ? 'text-violet-700 border-b-2 border-violet-600'
                 : 'text-gray-600 hover:text-violet-600'}`}
               onClick={() => setActiveResultTab('notes')}
             >
@@ -296,8 +303,8 @@ export default function Popup() {
           )}
           {selectedProcessingOptions.quiz && (
             <button
-              className={`flex-1 py-2 px-4 text-sm font-medium ${activeResultTab === 'quiz' 
-                ? 'text-violet-700 border-b-2 border-violet-600' 
+              className={`flex-1 py-2 px-4 text-xs font-medium ${activeResultTab === 'quiz'
+                ? 'text-violet-700 border-b-2 border-violet-600'
                 : 'text-gray-600 hover:text-violet-600'}`}
               onClick={() => setActiveResultTab('quiz')}
             >
@@ -360,7 +367,7 @@ export default function Popup() {
 
         {/* Actions Footer */}
         <div className="bg-gray-50 p-3 flex justify-between border-t">
-          <button 
+          <button
             className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1"
             onClick={resetState}
           >
@@ -383,7 +390,7 @@ export default function Popup() {
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-violet-50 to-indigo-100">
-      <div className="max-w-4xl mx-auto p-6 rounded-full">
+      <div className="max-w-7xl mx-auto p-6 rounded-full">
         {/* Professional Header with Violet Theme */}
         <div className="relative overflow-hidden rounded-xl mb-6 bg-white shadow-lg">
           <div className="absolute inset-0 bg-gradient-to-r from-violet-500/20 via-indigo-500/20 to-purple-500/20 animate-gradient"></div>
@@ -392,6 +399,7 @@ export default function Popup() {
               <div>
                 <h1 className="text-2xl font-bold text-gray-800 mb-1">Smart Sidebar</h1>
                 <p className="text-gray-600">AI-powered content analyzer</p>
+                <LanguageSelector />
               </div>
               <div className="bg-violet-600 text-white p-2 rounded-lg shadow-md">
                 <Bookmark size={20} />
@@ -407,10 +415,10 @@ export default function Popup() {
               {/* Option Boxes in Row */}
               <div className="grid grid-cols-3 gap-4 mb-6">
                 {/* YouTube URL Box */}
-                <div 
+                <div
                   className={`p-4 rounded-xl border-2 transition-all cursor-pointer group hover:shadow-md
-                    ${selectedOption === 'youtube' 
-                      ? 'border-violet-500 bg-violet-50' 
+                    ${selectedOption === 'youtube'
+                      ? 'border-violet-500 bg-violet-50'
                       : 'border-gray-200 hover:border-violet-300 hover:bg-gray-50'}`}
                   onClick={() => setSelectedOption('youtube')}
                 >
@@ -423,10 +431,10 @@ export default function Popup() {
                 </div>
 
                 {/* Upload Video Box */}
-                <div 
+                <div
                   className={`p-4 rounded-xl border-2 transition-all cursor-pointer group hover:shadow-md
-                    ${selectedOption === 'video' 
-                      ? 'border-violet-500 bg-violet-50' 
+                    ${selectedOption === 'video'
+                      ? 'border-violet-500 bg-violet-50'
                       : 'border-gray-200 hover:border-violet-300 hover:bg-gray-50'}`}
                   onClick={() => setSelectedOption('video')}
                 >
@@ -455,10 +463,10 @@ export default function Popup() {
                 </div> */}
 
                 {/* Upload Document Box */}
-                <div 
+                <div
                   className={`p-4 rounded-xl border-2 transition-all cursor-pointer group hover:shadow-md
-                    ${selectedOption === 'document' 
-                      ? 'border-violet-500 bg-violet-50' 
+                    ${selectedOption === 'document'
+                      ? 'border-violet-500 bg-violet-50'
                       : 'border-gray-200 hover:border-violet-300 hover:bg-gray-50'}`}
                   onClick={() => setSelectedOption('document')}
                 >
@@ -469,11 +477,13 @@ export default function Popup() {
                     <h2 className="font-semibold text-sm text-gray-800">Upload Document</h2>
                   </div>
                 </div>
+                <LanguageSelector />
               </div>
 
               {/* Input Section */}
               {selectedOption && (
                 <div className="mb-6 animate-fadeIn">
+                  <LanguageSelector />
                   {selectedOption === 'youtube' && (
                     <div className="space-y-4">
                       <div className="relative">
@@ -488,14 +498,14 @@ export default function Popup() {
                           <Youtube className="text-red-600" size={18} />
                         </div>
                       </div>
-                      
+
                       {/* YouTube Preview */}
                       {videoPreview && (
                         <div className="bg-gray-50 rounded-lg overflow-hidden border border-gray-200 animate-fadeIn">
                           <div className="relative pb-[56.25%] bg-black"> {/* 16:9 aspect ratio */}
-                            <img 
-                              src={videoPreview.thumbnail} 
-                              alt="Video thumbnail" 
+                            <img
+                              src={videoPreview.thumbnail}
+                              alt="Video thumbnail"
                               className="absolute inset-0 w-full h-full object-cover"
                               onError={(e) => {
                                 // If maxresdefault fails, try hqdefault
@@ -512,9 +522,9 @@ export default function Popup() {
                             <div className="text-sm text-gray-700 font-medium line-clamp-1">
                               YouTube Video Preview
                             </div>
-                            <a 
-                              href={`https://www.youtube.com/watch?v=${videoPreview.id}`} 
-                              target="_blank" 
+                            <a
+                              href={`https://www.youtube.com/watch?v=${videoPreview.id}`}
+                              target="_blank"
                               rel="noopener noreferrer"
                               className="text-violet-600 hover:text-violet-700 text-sm flex items-center gap-1"
                             >
@@ -524,13 +534,12 @@ export default function Popup() {
                           </div>
                         </div>
                       )}
-                      
-                      <button 
-                        className={`w-full py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 ${
-                          apiStatus.loading ? 
-                          'bg-violet-400 cursor-not-allowed' : 
-                          'bg-violet-600 hover:bg-violet-700 text-white'
-                        }`}
+
+                      <button
+                        className={`w-full py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 ${apiStatus.loading ?
+                            'bg-violet-400 cursor-not-allowed' :
+                            'bg-violet-600 hover:bg-violet-700 text-white'
+                          }`}
                         onClick={() => setProcessing(true)}
                         disabled={apiStatus.loading || !videoPreview}
                       >
@@ -545,7 +554,7 @@ export default function Popup() {
                       </button>
                     </div>
                   )}
-                  
+
                   {selectedOption === 'video' && (
                     <div className="border-2 border-dashed border-violet-300 rounded-lg p-8 text-center hover:bg-violet-50 transition-colors">
                       <input
@@ -555,7 +564,7 @@ export default function Popup() {
                         id="video-upload"
                         onChange={(e) => handleFileUpload(e, 'video')}
                       />
-                      <label 
+                      <label
                         htmlFor="video-upload"
                         className="cursor-pointer flex flex-col items-center gap-3"
                       >
@@ -565,7 +574,7 @@ export default function Popup() {
                       </label>
                     </div>
                   )}
-                  
+
                   {selectedOption === 'audio' && (
                     <div className="border-2 border-dashed border-violet-300 rounded-lg p-8 text-center hover:bg-violet-50 transition-colors">
                       <input
@@ -575,7 +584,7 @@ export default function Popup() {
                         id="audio-upload"
                         onChange={(e) => handleFileUpload(e, 'audio')}
                       />
-                      <label 
+                      <label
                         htmlFor="audio-upload"
                         className="cursor-pointer flex flex-col items-center gap-3"
                       >
@@ -585,73 +594,81 @@ export default function Popup() {
                       </label>
                     </div>
                   )}
-                  
+
                   {selectedOption === 'document' && (
-                    <div className="border-2 border-dashed border-violet-300 rounded-lg p-8 text-center hover:bg-violet-50 transition-colors">
-                      <input
-                        type="file"
-                        accept=".pdf,.doc,.docx,.txt"
-                        className="hidden"
-                        id="document-upload"
-                        onChange={(e) => handleFileUpload(e, 'document')}
-                      />
-                      <label 
-                        htmlFor="document-upload"
-                        className="cursor-pointer flex flex-col items-center gap-3"
-                      >
-                        <FileText className="text-violet-500" size={32} />
-                        <span className="text-sm text-gray-700 font-medium">Click to upload or drag and drop</span>
-                        <span className="text-xs text-gray-500">PDF, DOC, DOCX, TXT up to 100MB</span>
-                      </label>
+                    <div className="animate-fadeIn">
+                      {!processing ? (
+                        <div className="border-2 border-dashed border-violet-300 rounded-lg p-8 text-center hover:bg-violet-50 transition-colors">
+                          <input
+                            type="file"
+                            accept=".pdf,.doc,.docx,.txt"
+                            className="hidden"
+                            id="document-upload"
+                            onChange={(e) => handleFileUpload(e, 'document')}
+                          />
+                          <label
+                            htmlFor="document-upload"
+                            className="cursor-pointer flex flex-col items-center gap-3"
+                          >
+                            <FileText className="text-violet-500" size={32} />
+                            <span className="text-sm text-gray-700 font-medium">Click to upload or drag and drop</span>
+                            <span className="text-xs text-gray-500">PDF, DOC, DOCX, TXT up to 10MB</span>
+                          </label>
+                        </div>
+                      ) : (
+                        <div className="h-[500px] bg-white rounded-lg shadow-lg overflow-hidden">
+                          <PdfChatComponent />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               )}
 
               {/* Processing Options */}
-              {processing && !apiStatus.loading && !apiStatus.success && (videoPreview || uploadedFile) && (
+              {!(selectedOption === 'document') && processing && !apiStatus.loading && !apiStatus.success && (videoPreview || uploadedFile ) && (
                 <div className="space-y-4 animate-fadeIn">
                   <div className="bg-gradient-to-r from-violet-50 to-indigo-50 p-6 rounded-lg border border-violet-100">
                     <h3 className="font-medium text-gray-800 mb-4">Processing Options</h3>
                     <div className="grid grid-cols-2 gap-3">
                       <label className={`flex items-center space-x-3 p-3 rounded-lg border ${selectedProcessingOptions.transcript ? 'bg-violet-100 border-violet-300' : 'bg-white border-gray-200'} hover:border-violet-300 transition-colors cursor-pointer`}>
-                        <input 
-                          type="checkbox" 
-                          className="form-checkbox h-5 w-5 text-violet-600 rounded" 
+                        <input
+                          type="checkbox"
+                          className="form-checkbox h-5 w-5 text-violet-600 rounded"
                           checked={selectedProcessingOptions.transcript}
                           onChange={() => handleProcessingOptionChange('transcript')}
                         />
                         <span className="text-sm text-gray-700">Generate Transcript</span>
                       </label>
                       <label className={`flex items-center space-x-3 p-3 rounded-lg border ${selectedProcessingOptions.summary ? 'bg-violet-100 border-violet-300' : 'bg-white border-gray-200'} hover:border-violet-300 transition-colors cursor-pointer`}>
-                        <input 
-                          type="checkbox" 
-                          className="form-checkbox h-5 w-5 text-violet-600 rounded" 
+                        <input
+                          type="checkbox"
+                          className="form-checkbox h-5 w-5 text-violet-600 rounded"
                           checked={selectedProcessingOptions.summary}
                           onChange={() => handleProcessingOptionChange('summary')}
                         />
                         <span className="text-sm text-gray-700">Create Summary</span>
                       </label>
                       <label className={`flex items-center space-x-3 p-3 rounded-lg border ${selectedProcessingOptions.notes ? 'bg-violet-100 border-violet-300' : 'bg-white border-gray-200'} hover:border-violet-300 transition-colors cursor-pointer`}>
-                        <input 
-                          type="checkbox" 
-                          className="form-checkbox h-5 w-5 text-violet-600 rounded" 
+                        <input
+                          type="checkbox"
+                          className="form-checkbox h-5 w-5 text-violet-600 rounded"
                           checked={selectedProcessingOptions.notes}
                           onChange={() => handleProcessingOptionChange('notes')}
                         />
                         <span className="text-sm text-gray-700">Generate Short Notes</span>
                       </label>
                       <label className={`flex items-center space-x-3 p-3 rounded-lg border ${selectedProcessingOptions.quiz ? 'bg-violet-100 border-violet-300' : 'bg-white border-gray-200'} hover:border-violet-300 transition-colors cursor-pointer`}>
-                        <input 
-                          type="checkbox" 
-                          className="form-checkbox h-5 w-5 text-violet-600 rounded" 
+                        <input
+                          type="checkbox"
+                          className="form-checkbox h-5 w-5 text-violet-600 rounded"
                           checked={selectedProcessingOptions.quiz}
                           onChange={() => handleProcessingOptionChange('quiz')}
                         />
                         <span className="text-sm text-gray-700">Create Quiz</span>
                       </label>
                     </div>
-                    <button 
+                    <button
                       className="mt-5 w-full bg-gradient-to-r from-violet-600 to-indigo-600 text-white py-3 px-4 rounded-lg hover:from-violet-700 hover:to-indigo-700 transition-all shadow-md flex items-center justify-center gap-2"
                       onClick={handleSubmit}
                       disabled={apiStatus.loading}

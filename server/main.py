@@ -14,12 +14,14 @@ from youtube_transcript_api import YouTubeTranscriptApi
 import uvicorn
 from dotenv import load_dotenv
 from langchain.text_splitter import CharacterTextSplitter
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.vectorstores import FAISS
-from langchain.chains import ConversationalRetrievalChain
+# from langchain_huggingface import HuggingFaceEmbeddings
+# from langchain.vectorstores import FAISS
+# from langchain.chains import ConversationalRetrievalChain
 from langchain_groq import ChatGroq
-from langchain.chains.conversation.memory import ConversationBufferMemory
+# from langchain.chains.conversation.memory import ConversationBufferMemory
 from PyPDF2 import PdfReader
+# from sentence_transformers import SentenceTransformer
+import numpy as np
 import io
 # Load environment variables
 load_dotenv()
@@ -371,10 +373,10 @@ async def full_analysis(video_data: VideoURL):
         "short_notes": short_notes
     }
 
-# Add these routes to your FastAPI app
+# Simple text-based PDF handling without embeddings
 @app.post("/process-pdf")
 async def process_pdf(file: UploadFile = File(...)):
-    """Process a PDF file and create a vector store."""
+    """Process a PDF file without using embeddings."""
     try:
         contents = await file.read()
         pdf_reader = PdfReader(io.BytesIO(contents))
@@ -390,24 +392,18 @@ async def process_pdf(file: UploadFile = File(...)):
         )
         chunks = text_splitter.split_text(text)
         
-        # Create embeddings and vector store
-        embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-        vector_store = FAISS.from_texts(chunks, embeddings)
-        
-        # Save vector store temporarily (in a real app, you'd persist this with a session ID)
-        # For demo purposes, we'll just return a success message
-        
         return {
             "status": "success",
             "message": "PDF processed successfully",
-            "preview": text[:500] + "..." if len(text) > 500 else text
+            "preview": text[:500] + "..." if len(text) > 500 else text,
+            "chunks": len(chunks)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
 
 @app.post("/ask-pdf")
 async def ask_pdf(question: str = Form(...), file: UploadFile = File(...)):
-    """Ask a question about the PDF content."""
+    """Ask a question about the PDF content using direct LLM processing."""
     try:
         contents = await file.read()
         pdf_reader = PdfReader(io.BytesIO(contents))
@@ -417,37 +413,35 @@ async def ask_pdf(question: str = Form(...), file: UploadFile = File(...)):
         for page in pdf_reader.pages:
             text += page.extract_text()
         
-        # Split text into chunks
+        # Split text into chunks for processing
         text_splitter = CharacterTextSplitter(
             separator="\n", chunk_size=1000, chunk_overlap=200
         )
         chunks = text_splitter.split_text(text)
         
-        # Create embeddings and vector store
-        embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-        vector_store = FAISS.from_texts(chunks, embeddings)
+        # For simplicity, we'll use the first few chunks as context
+        # In a production system, you'd want a proper retrieval mechanism
+        # But this avoids the embedding dependency issues
+        context = "\n\n".join(chunks[:3])  # First 3 chunks
         
-        # Initialize Groq chat model
-        groq_chat = ChatGroq(
-            groq_api_key=GROQ_API_KEY,
-            model_name="mixtral-8x7b-32768"
-        )
-        
-        # Set up memory
-        memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
-        
-        # Build conversational retrieval chain
-        qa_chain = ConversationalRetrievalChain.from_llm(
-            llm=groq_chat,
-            retriever=vector_store.as_retriever(),
-            memory=memory
-        )
-        
-        # Get answer
-        response = qa_chain.run(question)
+        # Use Groq for answering based on context
+        try:
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant. Answer the question based on the provided context from a PDF document."},
+                    {"role": "user", "content": f"Context from PDF:\n{context[:3000]}...\n\nQuestion: {question}"}
+                ],
+                temperature=0.2,
+                max_tokens=500
+            )
+            answer = response.choices[0].message.content
+        except Exception as e:
+            answer = f"Error generating answer: {str(e)}"
         
         return {
-            "answer": response
+            "answer": answer,
+            "context_used": "First few sections of the document were used for context."
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing question: {str(e)}")

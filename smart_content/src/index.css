@@ -1,6 +1,6 @@
 
 @import "tailwindcss";
-.__smart__Content__Root__{
+/* .__smart__Content__Root__{
   width: 400px;
   height: 400px;
   background-color: red;
@@ -8,7 +8,7 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   font-family: Arial, sans-serif;
   color: #333;
-}
+} */
 
 .extension{
   width: 800px;
