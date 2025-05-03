@@ -25,7 +25,7 @@ const PdfChatComponent = () => {
       processFile(file);
     }
   };
-
+ // upload file
   const processFile = async (file) => {
     setLoading(true);
     try {
